@@ -1,0 +1,49 @@
+{{ ansible_managed | comment }}
+
+<Directory /var/www/html/nextcloud/>
+  Options +FollowSymlinks
+  AllowOverride All
+
+  <IfModule mod_dav.c>
+    Dav off
+  </IfModule>
+
+  SetEnv HOME /var/www/html/nextcloud
+  SetEnv HTTP_HOME /var/www/html/nextcloud
+
+  Header always set Referrer-Policy no-referrer
+
+</Directory>
+
+{% if nextcloud_ssl | default(False) %}
+<VirtualHost *:80>
+  ServerName {{ inventory_hostname }}
+
+  Redirect permanent / https://{{ inventory_hostname }}/
+</VirtualHost>
+
+<VirtualHost *:443>
+{% else %}
+<VirtualHost *:80>
+{% endif %}
+  ServerName {{ inventory_hostname }}
+  DocumentRoot /var/www/html/nextcloud
+
+  # Available loglevels: trace8, ..., trace1, debug, info, notice, warn,
+  # error, crit, alert, emerg.
+  # It is also possible to configure the loglevel for particular
+  # modules, e.g.
+  #LogLevel info ssl:warn
+
+  ErrorLog ${APACHE_LOG_DIR}/error.log
+  CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+{% if nextcloud_ssl | default(False) %}
+  SSLEngine on
+
+  SSLCertificateFile {{ nextcloud_ssl_certificate }}
+  SSLCertificateKeyFile {{ nextcloud_ssl_certificate_key }}
+{% endif %}
+</VirtualHost>
+
+# vim: syntax=apache ts=2 sw=2 et

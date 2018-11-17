@@ -1,0 +1,42 @@
+---
+- name: create download directory
+  file:
+    path: /root/downloads
+    state: directory
+    owner: root
+    group: root
+    mode: u=rwx,g=rx,o=rx
+- name: download GPG key
+  get_url:
+    url: https://nextcloud.com/nextcloud.asc
+    dest: /root/downloads/nextcloud.asc
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+- name: import GPG key
+  command: gpg --import nextcloud.asc
+  args:
+    chdir: /root/downloads
+  register: gpg_import_result
+  changed_when: "'imported: 1' in gpg_import_result.stderr"
+- name: download tarball, checksum & signature
+  get_url:
+    url: https://download.nextcloud.com/server/releases/{{ item }}
+    dest: /root/downloads/{{ item }}
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+  loop:
+    - nextcloud-{{ nextcloud_version }}.tar.bz2
+    - nextcloud-{{ nextcloud_version }}.tar.bz2.sha256
+    - nextcloud-{{ nextcloud_version }}.tar.bz2.asc
+- name: verify checksum
+  command: sha256sum -c nextcloud-{{ nextcloud_version }}.tar.bz2.sha256
+  args:
+    chdir: /root/downloads
+- name: verify GPG signature
+  command: gpg --verify nextcloud-{{ nextcloud_version }}.tar.bz2.asc nextcloud-{{ nextcloud_version }}.tar.bz2
+  args:
+    chdir: /root/downloads
+
+# vim: ts=2 sw=2 et

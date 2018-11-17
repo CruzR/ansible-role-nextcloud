@@ -1,0 +1,146 @@
+---
+- name: install dependencies
+  apt:
+    name:
+      - libapache2-mod-php7.0
+      - php7.0-gd
+      - php7.0-json
+      - php7.0-curl
+      - php7.0-mbstring
+      - php7.0-intl
+      - php7.0-mcrypt
+      - php7.0-imagick
+      - php7.0-xml
+      - php7.0-zip
+      - php7.0-apcu
+      - redis-server
+      - php-redis
+    state: latest
+  notify: restart apache
+- name: install db specific dependencies
+  import_tasks: "{{ nextcloud_database | default('sqlite') }}/install-dependencies.yml"
+- name: download and verify tarball
+  import_tasks: download-and-verify.yml
+  vars:
+    nextcloud_version: "14.0.3"
+- name: extract nextcloud
+  unarchive:
+    src: /root/downloads/nextcloud-14.0.3.tar.bz2
+    remote_src: yes
+    dest: /var/www/html
+    owner: www-data
+    group: www-data
+- name: enable apache modules
+  apache2_module:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - rewrite
+    - headers
+    - env
+    - dir
+    - mime
+  notify: restart apache
+- name: enable apache ssl module
+  apache2_module:
+    name: ssl
+    state: present
+  when: nextcloud_ssl | default(False)
+  notify: restart apache
+- name: upload apache site config
+  template:
+    src: nextcloud.conf.j2
+    dest: /etc/apache2/sites-available/nextcloud.conf
+    owner: root
+    group: root
+- name: disable default apache site
+  command: a2dissite 000-default.conf
+  args:
+    removes: /etc/apache2/sites-enabled/000-default.conf
+  notify: restart apache
+- name: enable apache site config
+  command: a2ensite nextcloud.conf
+  args:
+    creates: /etc/apache2/sites-enabled/nextcloud.conf
+  notify: restart apache
+- name: upload php.ini
+  copy:
+    src: php.ini
+    dest: /etc/php/7.0/apache2/php.ini
+    owner: root
+    group: root
+  notify: restart apache
+- name: upload mariadb config
+  copy:
+    src: 60-nextcloud.cnf
+    dest: /etc/mysql/mariadb.conf.d/60-nextcloud.cnf
+    owner: root
+    group: root
+  when: nextcloud_database is defined and nextcloud_database == 'mysql'
+  notify: restart mariadb
+- name: upload nextcloud config
+  template:
+    src: main.config.php.j2
+    dest: /var/www/html/nextcloud/config/main.config.php
+    owner: www-data
+    group: www-data
+- name: create data directory
+  file:
+    path: "{{ nextcloud_data_directory }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: u=rwx,o=,g=
+- name: check if install is required
+  become: yes
+  become_user: www-data
+  block:
+    - name: check if install is required
+      command: php occ list
+      args:
+        chdir: /var/www/html/nextcloud
+      register: occ_list_result
+      changed_when: False
+- name: install nextcloud
+  vars:
+    temp_user_name: "temp_user"
+    temp_user_pass: "temp_pass"
+  import_tasks: "{{ nextcloud_database | default('sqlite') }}/install-nextcloud.yml"
+  when: "'maintenance:install' in occ_list_result.stdout"
+- name: occ block
+  become: yes
+  become_user: www-data
+  block:
+    - name: rewrite .htaccess files
+      command: php occ maintenance:update:htaccess
+      args:
+        chdir: /var/www/html/nextcloud
+    - name: install apps
+      command: "php occ app:install {{ item }}"
+      args:
+        chdir: /var/www/html/nextcloud
+        creates: "/var/www/html/nextcloud/apps/{{ item }}"
+      loop: "{{ nextcloud_apps | default([]) }}"
+- name: Upload nextcloudcron unit files
+  copy:
+    src: "{{ item }}"
+    dest: /etc/systemd/system
+    owner: root
+    group: root
+  loop:
+    - nextcloudcron.service
+    - nextcloudcron.timer
+- name: start and enable nextcloudcron
+  systemd:
+    name: nextcloudcron.timer
+    enabled: yes
+    state: started
+- name: install certbot renewal hook
+  copy:
+    src: 50-restart-apache.sh
+    dest: /usr/local/bin/certbot-renewal-hooks.d/
+    owner: root
+    group: root
+    mode: u=rwx,o=rx,g=rx
+
+# vim: ts=2 sw=2 et

@@ -1,0 +1,37 @@
+---
+- name: temp db user block (postgres)
+  block:
+    - become: yes
+      become_user: postgres
+      block:
+        - name: create temp postgres user
+          postgresql_user:
+            name: "{{ temp_user_name }}"
+            password: "{{ temp_user_pass }}"
+            role_attr_flags: "CREATEROLE,CREATEDB"
+            state: present
+    - name: run nextcloud installation command
+      become: yes
+      become_user: www-data
+      block:
+        - name: install nextcloud (postgres)
+          command: "php occ maintenance:install \
+                    --admin-user={{ nextcloud_admin_user }} \
+                    --admin-pass={{ nextcloud_admin_pass }} \
+                    --data-dir={{ nextcloud_data_directory }} \
+                    --database=pgsql \
+                    --database-name=nextcloud \
+                    --database-user={{ temp_user_name }} \
+                    --database-pass={{ temp_user_pass }}"
+          args:
+            chdir: /var/www/html/nextcloud
+  always:
+    - become: yes
+      become_user: postgres
+      block:
+        - name: remove temp postgres user
+          postgresql_user:
+            name: "{{ temp_user_name }}"
+            state: absent
+
+# vim: ts=2 sw=2 et

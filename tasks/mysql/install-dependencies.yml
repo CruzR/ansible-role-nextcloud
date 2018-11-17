@@ -1,0 +1,9 @@
+---
+- name: install dependencies for use with mariadb
+  apt:
+    name:
+      - php7.0-mysql
+      - python-pymysql
+    state: latest
+
+# vim: ts=2 sw=2 et

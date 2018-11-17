@@ -1,0 +1,7 @@
+---
+- name: install dependencies for use with sqlite
+  apt:
+    name: php7.0-sqlite3
+    state: latest
+
+# vim: ts=2 sw=2 et

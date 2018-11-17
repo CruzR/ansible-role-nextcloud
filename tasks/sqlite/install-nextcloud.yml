@@ -1,0 +1,13 @@
+---
+- become: yes
+  become_user: www-data
+  block:
+    - name: install nextcloud (sqlite)
+      command: "php occ maintenance:install \
+                --admin-user={{ nextcloud_admin_user }} \
+                --admin-pass={{ nextcloud_admin_pass }} \
+                --data-dir={{ nextcloud_data_directory }}"
+      args:
+        chdir: /var/www/html/nextcloud
+
+# vim: ts=2 sw=2 et

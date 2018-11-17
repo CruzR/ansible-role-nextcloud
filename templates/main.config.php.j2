@@ -1,0 +1,29 @@
+<?php
+
+{{ ansible_managed | comment('c') }}
+
+$CONFIG = array(
+{% if nextcloud_ssl | default(False) %}
+  'overwrite.cli.url' => 'https://{{ inventory_hostname }}/',
+{% else %}
+  'overwrite.cli.url' => 'http://{{ inventory_hostname }}/',
+{% endif %}
+
+  'htaccess.RewriteBase' => '/',
+  'trusted_domains' => array(
+    '{{ inventory_hostname }}',
+  ),
+
+  'memcache.local' => '\OC\Memcache\APCu',
+  'memcache.locking' => '\OC\Memcache\Redis',
+  'redis' => array(
+    'host' => 'localhost',
+    'port' => 6379,
+  ),
+
+{% if nextcloud_database is defined and nextcloud_database == 'mysql' %}
+  'mysql.utf8mb4' => true,
+{% endif %}
+);
+
+// vim: syntax=php ts=2 sw=2 et
